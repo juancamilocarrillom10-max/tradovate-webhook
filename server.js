@@ -18,9 +18,9 @@ const CONFIG = {
   webhookSecret: process.env.WEBHOOK_SECRET || "mi_clave_secreta_123",
 };
 
-// URL base — usa demo para el examen de fondeo
-const BASE_URL = "https://demo.tradovateapi.com/v1";
-// Para cuenta real: "https://live.tradovateapi.com/v1"
+// URL base — las cuentas Eval/fondeo de Lucid corren sobre el entorno LIVE de Tradovate
+const BASE_URL = "https://live.tradovateapi.com/v1";
+// Solo para cuentas de practica gratuitas sin fondeo real: "https://demo.tradovateapi.com/v1"
 
 // ─── TOKEN DE ACCESO ──────────────────────────────────────────────────────────
 let accessToken  = null;
