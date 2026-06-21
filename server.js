@@ -14,7 +14,7 @@ const CONFIG = {
   cid:         process.env.TV_CID         || "",   // Client ID si tienes API key
   sec:         process.env.TV_SEC         || "",   // Secret si tienes API key
   accountName: process.env.TV_ACCOUNT     || "",   // Nombre exacto de tu cuenta en Tradovate
-  symbol:      "MGCQ6",                            // Simbolo activo — cambia segun mes
+  defaultSymbol: process.env.TV_SYMBOL    || "MGCQ6", // Simbolo de respaldo si la alerta no manda uno
   webhookSecret: process.env.WEBHOOK_SECRET || "mi_clave_secreta_123",
 };
 
@@ -70,7 +70,7 @@ async function getAccountId(token) {
 }
 
 // ─── EJECUTAR ORDEN ───────────────────────────────────────────────────────────
-async function placeOrder(action, qty, sl_price, tp_price) {
+async function placeOrder(action, symbol, qty, sl_price, tp_price) {
   const token     = await getToken();
   const accountId = await getAccountId(token);
 
@@ -80,7 +80,7 @@ async function placeOrder(action, qty, sl_price, tp_price) {
   const orderBody = {
     accountId,
     action:   side,
-    symbol:   CONFIG.symbol,
+    symbol:   symbol,
     orderQty: qty,
     orderType: "Market",
     isAutomated: true,
@@ -96,7 +96,7 @@ async function placeOrder(action, qty, sl_price, tp_price) {
     },
   };
 
-  console.log(`📤 Enviando orden ${side} x${qty} | SL: ${sl_price} | TP: ${tp_price}`);
+  console.log(`📤 Enviando orden ${side} ${symbol} x${qty} | SL: ${sl_price} | TP: ${tp_price}`);
 
   const res = await axios.post(`${BASE_URL}/order/placeorder`, orderBody, {
     headers: { Authorization: `Bearer ${token}` },
@@ -111,11 +111,14 @@ app.post("/webhook", async (req, res) => {
   console.log("\n📨 Alerta recibida:", JSON.stringify(req.body, null, 2));
 
   // Verificacion de seguridad
-  const { secret, action, qty, sl, tp } = req.body;
+  const { secret, action, symbol, qty, sl, tp } = req.body;
   if (secret !== CONFIG.webhookSecret) {
     console.warn("⚠️  Clave incorrecta — alerta ignorada");
     return res.status(401).json({ error: "Unauthorized" });
   }
+
+  // Si la alerta no manda symbol, usa el de respaldo configurado en Railway
+  const finalSymbol = symbol || CONFIG.defaultSymbol;
 
   // Validar campos
   if (!action || !qty || !sl || !tp) {
@@ -126,8 +129,8 @@ app.post("/webhook", async (req, res) => {
   }
 
   try {
-    const result = await placeOrder(action.toUpperCase(), parseInt(qty), parseFloat(sl), parseFloat(tp));
-    res.json({ ok: true, order: result });
+    const result = await placeOrder(action.toUpperCase(), finalSymbol, parseInt(qty), parseFloat(sl), parseFloat(tp));
+    res.json({ ok: true, symbol: finalSymbol, order: result });
   } catch (err) {
     console.error("❌ Error al colocar orden:", err.response?.data || err.message);
     res.status(500).json({ error: err.message });
@@ -138,7 +141,7 @@ app.post("/webhook", async (req, res) => {
 app.get("/", (req, res) => {
   res.json({
     status: "online",
-    symbol: CONFIG.symbol,
+    defaultSymbol: CONFIG.defaultSymbol,
     env:    BASE_URL.includes("demo") ? "DEMO" : "LIVE",
     time:   new Date().toISOString(),
   });
@@ -149,5 +152,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log(`📡 Entorno: ${BASE_URL.includes("demo") ? "DEMO" : "LIVE"}`);
-  console.log(`🎯 Simbolo: ${CONFIG.symbol}`);
+  console.log(`🎯 Simbolo por defecto: ${CONFIG.defaultSymbol} (cada alerta puede mandar su propio symbol)`);
 });
